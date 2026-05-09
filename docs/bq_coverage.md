@@ -43,11 +43,13 @@
 | BQ37 | Qualification theo industry | Có | `query_bq_gaps.sql` |
 | BQ38 | Experience level demand | Có | `query_bq_gaps.sql` |
 | BQ39 | Experience vs work type | Có | `query_olap.sql` + `query_bq_gaps.sql` (bản tập trung) |
-| BQ40 | Predict salary | Có (Python) | `predictive_prototype.py` |
-| BQ41 | Predict hot skills | Một phần (Python forecast) | `predictive_prototype.py` |
-| BQ42 | Job similarity | Thiếu *(engine / scoring ngoài SQL ad-hoc)* | — |
-| BQ43 | Recommendation | Thiếu *(hệ gợi ý đầy đủ)* | — |
+| BQ40 | Predict salary | Có (Python) | `predictive_prototype.py` → `bq40_salary_prediction` |
+| BQ41 | Predict hot skills | Có | `predictive_prototype.py` → `bq41_hot_skills` (forecast + momentum + YoY) |
+| BQ42 | Job similarity | Có | `predictive_prototype.py` → `bq42_job_similarity` (Jaccard skill + role + lương) |
+| BQ43 | Recommendation | Có | `predictive_prototype.py` → `bq43_recruitment_recommendation` (budget + role + skills → country/industry) |
 
-**Thiếu thực sự trong repo:** chỉ **BQ42**, **BQ43** (và có thể mở rộng độ tin cậy BQ41 so với mô tả “hot skills”).
+**JSON báo cáo:** `extra_hiring_volume_forecast` = dự báo số tin theo tháng (tên cũ trong file mẫu: `bq62_*`). Khóa `bq60_*` / `bq61_*` đã đổi thành `bq40_*` / `bq41_*` cho khớp catalog.
+
+**CLI gợi ý:** `python analysis/predictive_prototype.py --anchor-fact-job-id 1 --rec-budget 90000 --rec-role Engineer --rec-skills "python,sql,aws"`
 
 Pipeline: `query_olap.sql` rồi `query_bq_gaps.sql` (`run.py`, `run.sh`). Streamlit nạp cả hai qua `load_merged_catalog`.
