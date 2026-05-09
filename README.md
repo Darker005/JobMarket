@@ -31,7 +31,14 @@ createdb -U postgres jobmarket
 
 ## 4) Chạy toàn bộ pipeline (khuyến nghị)
 
-Lệnh mặc định:
+Trên **Windows**, pipeline thực tế chạy qua Python (cùng logic với Linux), không cần bash:
+
+- Double-click hoặc trong `cmd` / PowerShell: `run.cmd`
+- Hoặc: `python run.py` (hoặc `py run.py`)
+
+Cần có **`psql`** trong `PATH` (cài PostgreSQL và thêm thư mục `bin`, ví dụ `...\PostgreSQL\16\bin`). Nếu thiếu, `run.py` sẽ báo lỗi rõ ràng.
+
+Lệnh mặc định trên Linux/macOS:
 
 ```bash
 ./run.sh
@@ -60,6 +67,7 @@ Pipeline `run.sh` sẽ làm:
 4. Chạy data quality checks từ `analysis/data_quality_checks.sql`
 5. Chạy bộ query OLAP từ `analysis/query_olap.sql`
 6. Sinh dashboard/report outputs (PNG + summary) vào `analysis/output/`
+7. Chạy predictive prototype và xuất report JSON
 
 ## 5) Cấu hình kết nối DB
 
@@ -86,7 +94,7 @@ Nếu muốn chạy riêng ETL:
 
 ```bash
 python3 etl/transform.py \
-  --csv-path "/home/july/_dev/datawarehouse/JobMarket/jobs_analysis.xlsx" \
+  --csv-path "/home/july/_dev/JobMarket/jobs_analysis.xlsx" \
   --db-name jobmarket \
   --db-user postgres \
   --db-host localhost \
@@ -105,7 +113,23 @@ psql -U postgres -d jobmarket -f analysis/query_olap.sql
 psql -U postgres -d jobmarket -f analysis/data_quality_checks.sql
 ```
 
-## 9) Sinh dashboard/report outputs + ảnh chụp output
+## 9) UI web demo (wizard + danh sách query + chạy từng query)
+
+Cần cài thêm dependency (đã có trong `requirements.txt`):
+
+```bash
+pip install -r requirements.txt
+```
+
+Chạy Streamlit từ thư mục project:
+
+```bash
+streamlit run web/app.py
+```
+
+Trình duyệt mở tab **Pipeline** (hướng dẫn + tùy chọn chạy `run.py`), **Chạy query** (chọn OLAP từ `analysis/query_olap.sql` và bấm chạy), **Dashboard ảnh** (xem PNG trong `analysis/output/`).
+
+## 10) Sinh dashboard/report outputs + ảnh chụp output
 
 ```bash
 python analysis/dashboard_report.py
@@ -115,9 +139,13 @@ Sau khi chạy, thư mục `analysis/output/` sẽ có:
 - `dashboard_jobs_by_month.png`
 - `dashboard_top_countries.png`
 - `dashboard_top_skills.png`
+- `dashboard_salary_by_work_type.png`
+- `dashboard_top_industries.png`
 - `dashboard_summary.txt`
+- `etl_run_summary.json`
+- `predictive_prototype_report.json`
 
-## 10) Một số lỗi thường gặp
+## 11) Một số lỗi thường gặp
 
 - **Input path không đúng**
   - Kiểm tra lại đường dẫn truyền vào `./run.sh "...csv"` hoặc `./run.sh "...xlsx"`.
@@ -127,7 +155,7 @@ Sau khi chạy, thư mục `analysis/output/` sẽ có:
 - **Thiếu package Python**
   - Chạy lại: `pip install -r requirements.txt`.
 
-## 11) Cấu trúc thư mục chính
+## 12) Cấu trúc thư mục chính
 
 ```text
 Schema/
@@ -145,6 +173,9 @@ analysis/
   data_quality_checks.sql
   dashboard_report.py
   output/
+web/
+  app.py
+  query_loader.py
 docs/
   submission_checklist.md
   design_tradeoffs.md

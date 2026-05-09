@@ -1,6 +1,7 @@
 import json
 import re
 from decimal import Decimal, InvalidOperation
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -52,7 +53,62 @@ def parse_company_profile(value):
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return {}
+        # The source dataset often stores pseudo-JSON with single quotes.
+        safe_text = text.replace("'", '"')
+        try:
+            return json.loads(safe_text)
+        except json.JSONDecodeError:
+            return {}
+
+
+def parse_posting_date(value):
+    if pd.isna(value):
+        return None
+    if hasattr(value, "date"):
+        try:
+            return value.date()
+        except (TypeError, ValueError):
+            pass
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    if re.fullmatch(r"\d+(\.\d+)?", text):
+        serial = float(text)
+        # Excel date serial where day 1 is 1899-12-31 with leap-year offset.
+        base = datetime(1899, 12, 30)
+        try:
+            return (base + timedelta(days=serial)).date()
+        except OverflowError:
+            return None
+
+    parsed = pd.to_datetime(text, errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return parsed.date()
+
+
+def normalize_token_list(value):
+    if pd.isna(value):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    text = re.sub(r"[\{\}]", "", text)
+    text = re.sub(r"\s+", " ", text)
+    parts = re.split(r",|(?<!\w)/(?!\w)|(?<=\))\s+|(?<=[a-zA-Z])\s{2,}", text)
+    tokens = []
+    seen = set()
+    for part in parts:
+        token = part.strip().strip("'\"")
+        if not token:
+            continue
+        if token.lower() in seen:
+            continue
+        seen.add(token.lower())
+        tokens.append(token)
+    return " | ".join(tokens) if tokens else None
 
 
 def parse_experience_range(value):
@@ -79,7 +135,7 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = df[col].replace({"": None, "nan": None, "None": None})
 
     df["job_id"] = df["job_id_raw"].apply(parse_job_id)
-    df["posting_date"] = pd.to_datetime(df["posting_date_raw"], errors="coerce").dt.date
+    df["posting_date"] = df["posting_date_raw"].apply(parse_posting_date)
     df["min_salary"] = pd.to_numeric(df["min_salary_raw"], errors="coerce")
     df["max_salary"] = pd.to_numeric(df["max_salary_raw"], errors="coerce")
     df["latitude"] = pd.to_numeric(df["latitude_raw"], errors="coerce")
@@ -94,6 +150,14 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["industry"] = profiles.apply(lambda x: x.get("Industry"))
     df["company_city"] = profiles.apply(lambda x: x.get("City"))
     df["company_state"] = profiles.apply(lambda x: x.get("State"))
+    df["company_zip"] = profiles.apply(lambda x: x.get("Zip"))
+    df["company_website"] = profiles.apply(lambda x: x.get("Website"))
+    df["company_ticker"] = profiles.apply(lambda x: x.get("Ticker"))
+    df["company_ceo"] = profiles.apply(lambda x: x.get("CEO"))
+
+    df["skills_raw"] = df["skills_raw"].apply(normalize_token_list)
+    benefits_series = df["Benefits"] if "Benefits" in df.columns else pd.Series([None] * len(df), index=df.index)
+    df["benefits_raw"] = benefits_series.apply(normalize_token_list)
 
     df["portal_name"] = df["portal_name"].fillna("Unknown")
     df["preference_name"] = df["preference_name"].fillna("Unknown")

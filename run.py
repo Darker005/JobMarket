@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -44,8 +45,24 @@ def main():
     if db_password:
         env["PGPASSWORD"] = db_password
 
+    psql_exe = shutil.which("psql")
+    if not psql_exe:
+        print(
+            "Loi: Khong tim thay lenh 'psql' trong PATH.",
+            file=sys.stderr,
+        )
+        print(
+            "Cai PostgreSQL client (hoac bo PostgreSQL day du) va them thu muc bin vao PATH.",
+            file=sys.stderr,
+        )
+        print(
+            "Windows: thuong la ...\\PostgreSQL\\<version>\\bin (chay psql -V de kiem tra).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     psql_base = [
-        "psql",
+        psql_exe,
         "-h",
         db_host,
         "-p",
@@ -58,11 +75,11 @@ def main():
         "ON_ERROR_STOP=1",
     ]
 
-    print("[1/5] Dang tao schema va index...")
+    print("[1/6] Dang tao schema va index...")
     run_command(psql_base + ["-f", str(base_dir / "Schema" / "create_tables.sql")], env=env)
     run_command(psql_base + ["-f", str(base_dir / "Schema" / "create_index.sql")], env=env)
 
-    print("[2/5] Dang chay Python ETL...")
+    print("[2/6] Dang chay Python ETL...")
     etl_cmd = [
         sys.executable,
         str(base_dir / "etl" / "transform.py"),
@@ -81,13 +98,13 @@ def main():
         etl_cmd.extend(["--db-password", db_password])
     run_command(etl_cmd, env=env)
 
-    print("[3/5] Dang chay data quality checks...")
+    print("[3/6] Dang chay data quality checks...")
     run_command(psql_base + ["-f", str(base_dir / "analysis" / "data_quality_checks.sql")], env=env)
 
-    print("[4/5] Dang chay query OLAP...")
+    print("[4/6] Dang chay query OLAP...")
     run_command(psql_base + ["-f", str(base_dir / "analysis" / "query_olap.sql")], env=env)
 
-    print("[5/5] Dang tao dashboard/report outputs...")
+    print("[5/6] Dang tao dashboard/report outputs...")
     dashboard_cmd = [
         sys.executable,
         str(base_dir / "analysis" / "dashboard_report.py"),
@@ -103,6 +120,23 @@ def main():
     if db_password:
         dashboard_cmd.extend(["--db-password", db_password])
     run_command(dashboard_cmd, env=env)
+
+    print("[6/6] Dang chay predictive prototype...")
+    predictive_cmd = [
+        sys.executable,
+        str(base_dir / "analysis" / "predictive_prototype.py"),
+        "--db-name",
+        db_name,
+        "--db-user",
+        db_user,
+        "--db-host",
+        db_host,
+        "--db-port",
+        db_port,
+    ]
+    if db_password:
+        predictive_cmd.extend(["--db-password", db_password])
+    run_command(predictive_cmd, env=env)
 
     print("------------------------------------------")
     print("Hoan thanh thiet lap!")

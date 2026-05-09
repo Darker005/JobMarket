@@ -1,0 +1,7 @@
+{
+  "run_at_utc": "2026-05-09T10:39:22.808921+00:00",
+  "input_path": "/home/july/_dev/JobMarket/jobs_analysis.xlsx",
+  "input_rows": 115054,
+  "loaded_rows": 114526,
+  "rejected_rows": 528
+}

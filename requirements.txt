@@ -2,3 +2,5 @@ pandas
 psycopg2-binary
 openpyxl
 matplotlib
+scikit-learn
+streamlit>=1.28.0

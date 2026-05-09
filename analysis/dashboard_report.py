@@ -99,6 +99,58 @@ def chart_top_skills(conn, output_dir: Path):
     plt.close()
 
 
+def chart_salary_by_work_type(conn, output_dir: Path):
+    rows = fetch_rows(
+        conn,
+        """
+        SELECT COALESCE(j.work_type, 'Unknown') AS work_type,
+               AVG((f.min_salary + f.max_salary) / 2.0) AS avg_salary
+        FROM fact_job f
+        JOIN dim_job j ON j.job_dim_id = f.job_dim_id
+        GROUP BY COALESCE(j.work_type, 'Unknown')
+        ORDER BY avg_salary DESC NULLS LAST;
+        """,
+    )
+    labels = [r[0] for r in rows]
+    values = [float(r[1]) if r[1] is not None else 0 for r in rows]
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(labels, values)
+    plt.xticks(rotation=30, ha="right")
+    plt.title("Average Salary by Work Type")
+    plt.xlabel("Work Type")
+    plt.ylabel("Average Salary")
+    plt.tight_layout()
+    plt.savefig(output_dir / "dashboard_salary_by_work_type.png", dpi=150)
+    plt.close()
+
+
+def chart_top_industries(conn, output_dir: Path):
+    rows = fetch_rows(
+        conn,
+        """
+        SELECT COALESCE(c.industry, 'Unknown') AS industry,
+               COUNT(*) AS total_jobs
+        FROM fact_job f
+        JOIN dim_company c ON c.company_id = f.company_id
+        GROUP BY COALESCE(c.industry, 'Unknown')
+        ORDER BY total_jobs DESC
+        LIMIT 10;
+        """,
+    )
+    labels = [r[0] for r in rows]
+    values = [r[1] for r in rows]
+
+    plt.figure(figsize=(11, 6))
+    plt.barh(labels[::-1], values[::-1])
+    plt.title("Top 10 Industries by Job Demand")
+    plt.xlabel("Total Jobs")
+    plt.ylabel("Industry")
+    plt.tight_layout()
+    plt.savefig(output_dir / "dashboard_top_industries.png", dpi=150)
+    plt.close()
+
+
 def write_summary_report(conn, output_dir: Path):
     rows = fetch_rows(
         conn,
@@ -154,6 +206,8 @@ def main():
         chart_jobs_by_month(conn, output_dir)
         chart_top_countries(conn, output_dir)
         chart_top_skills(conn, output_dir)
+        chart_salary_by_work_type(conn, output_dir)
+        chart_top_industries(conn, output_dir)
         write_summary_report(conn, output_dir)
     finally:
         conn.close()

@@ -3,10 +3,12 @@
 -- =========================
 
 DROP TABLE IF EXISTS bridge_job_skill CASCADE;
+DROP TABLE IF EXISTS bridge_job_benefit CASCADE;
 DROP TABLE IF EXISTS fact_job CASCADE;
 DROP TABLE IF EXISTS dim_preference CASCADE;
 DROP TABLE IF EXISTS dim_portal CASCADE;
 DROP TABLE IF EXISTS dim_skill CASCADE;
+DROP TABLE IF EXISTS dim_benefit CASCADE;
 DROP TABLE IF EXISTS dim_job CASCADE;
 DROP TABLE IF EXISTS dim_company CASCADE;
 DROP TABLE IF EXISTS dim_location CASCADE;
@@ -38,6 +40,10 @@ CREATE TABLE dim_company (
     industry TEXT,
     city TEXT,
     state TEXT,
+    zip TEXT,
+    website TEXT,
+    ticker TEXT,
+    ceo TEXT,
     UNIQUE (company_name)
 );
 
@@ -53,6 +59,11 @@ CREATE TABLE dim_job (
 CREATE TABLE dim_skill (
     skill_id SERIAL PRIMARY KEY,
     skill_name TEXT UNIQUE
+);
+
+CREATE TABLE dim_benefit (
+    benefit_id SERIAL PRIMARY KEY,
+    benefit_name TEXT UNIQUE
 );
 
 CREATE TABLE dim_portal (
@@ -102,5 +113,15 @@ CREATE TABLE bridge_job_skill (
 
     FOREIGN KEY (fact_job_id) REFERENCES fact_job(fact_job_id),
     FOREIGN KEY (skill_id) REFERENCES dim_skill(skill_id)
+);
+
+CREATE TABLE bridge_job_benefit (
+    fact_job_id BIGINT,
+    benefit_id INT,
+
+    PRIMARY KEY (fact_job_id, benefit_id),
+
+    FOREIGN KEY (fact_job_id) REFERENCES fact_job(fact_job_id),
+    FOREIGN KEY (benefit_id) REFERENCES dim_benefit(benefit_id)
 );
 

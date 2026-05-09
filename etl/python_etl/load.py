@@ -19,8 +19,10 @@ SELECT DISTINCT city, country, latitude, longitude
 FROM stg_jobs_clean
 ON CONFLICT (city, country, latitude, longitude) DO NOTHING;
 
-INSERT INTO dim_company (company_name, company_size, sector, industry, city, state)
-SELECT DISTINCT company_name, company_size, sector, industry, company_city, company_state
+INSERT INTO dim_company (company_name, company_size, sector, industry, city, state, zip, website, ticker, ceo)
+SELECT DISTINCT
+    company_name, company_size, sector, industry, company_city, company_state,
+    company_zip, company_website, company_ticker, company_ceo
 FROM stg_jobs_clean
 ON CONFLICT (company_name) DO NOTHING;
 
@@ -77,8 +79,8 @@ WITH exploded AS (
   FROM stg_jobs_clean s
   JOIN fact_job f ON f.job_id = s.job_id
   CROSS JOIN LATERAL regexp_split_to_table(
-    regexp_replace(COALESCE(s.skills_raw, ''), '[{}]', '', 'g'),
-    ','
+    COALESCE(s.skills_raw, ''),
+    '\\|'
   ) AS skill_token
 )
 INSERT INTO dim_skill (skill_name)
@@ -94,8 +96,8 @@ WITH exploded AS (
   FROM stg_jobs_clean s
   JOIN fact_job f ON f.job_id = s.job_id
   CROSS JOIN LATERAL regexp_split_to_table(
-    regexp_replace(COALESCE(s.skills_raw, ''), '[{}]', '', 'g'),
-    ','
+    COALESCE(s.skills_raw, ''),
+    '\\|'
   ) AS skill_token
 )
 INSERT INTO bridge_job_skill (fact_job_id, skill_id)
@@ -103,6 +105,41 @@ SELECT DISTINCT e.fact_job_id, ds.skill_id
 FROM exploded e
 JOIN dim_skill ds ON ds.skill_name = e.skill_name
 WHERE e.skill_name <> ''
+ON CONFLICT DO NOTHING;
+
+WITH exploded AS (
+  SELECT
+    f.fact_job_id,
+    TRIM(benefit_token) AS benefit_name
+  FROM stg_jobs_clean s
+  JOIN fact_job f ON f.job_id = s.job_id
+  CROSS JOIN LATERAL regexp_split_to_table(
+    COALESCE(s.benefits_raw, ''),
+    '\\|'
+  ) AS benefit_token
+)
+INSERT INTO dim_benefit (benefit_name)
+SELECT DISTINCT benefit_name
+FROM exploded
+WHERE benefit_name <> ''
+ON CONFLICT (benefit_name) DO NOTHING;
+
+WITH exploded AS (
+  SELECT
+    f.fact_job_id,
+    TRIM(benefit_token) AS benefit_name
+  FROM stg_jobs_clean s
+  JOIN fact_job f ON f.job_id = s.job_id
+  CROSS JOIN LATERAL regexp_split_to_table(
+    COALESCE(s.benefits_raw, ''),
+    '\\|'
+  ) AS benefit_token
+)
+INSERT INTO bridge_job_benefit (fact_job_id, benefit_id)
+SELECT DISTINCT e.fact_job_id, db.benefit_id
+FROM exploded e
+JOIN dim_benefit db ON db.benefit_name = e.benefit_name
+WHERE e.benefit_name <> ''
 ON CONFLICT DO NOTHING;
 """
 
@@ -126,11 +163,16 @@ EXPORT_COLUMNS = [
     "industry",
     "company_city",
     "company_state",
+    "company_zip",
+    "company_website",
+    "company_ticker",
+    "company_ceo",
     "min_salary",
     "max_salary",
     "min_experience_years",
     "max_experience_years",
     "skills_raw",
+    "benefits_raw",
 ]
 
 
@@ -168,11 +210,16 @@ def load_clean_staging(conn, df):
                 industry TEXT,
                 company_city TEXT,
                 company_state TEXT,
+                company_zip TEXT,
+                company_website TEXT,
+                company_ticker TEXT,
+                company_ceo TEXT,
                 min_salary NUMERIC,
                 max_salary NUMERIC,
                 min_experience_years INT,
                 max_experience_years INT,
-                skills_raw TEXT
+                skills_raw TEXT,
+                benefits_raw TEXT
             );
             """
         )
@@ -184,8 +231,9 @@ def load_clean_staging(conn, df):
             COPY stg_jobs_clean (
                 job_id, posting_date, city, country, latitude, longitude, work_type, qualification,
                 preference_name, job_title, role, portal_name, company_name, company_size, sector,
-                industry, company_city, company_state, min_salary, max_salary, min_experience_years,
-                max_experience_years, skills_raw
+                industry, company_city, company_state, company_zip, company_website, company_ticker,
+                company_ceo, min_salary, max_salary, min_experience_years,
+                max_experience_years, skills_raw, benefits_raw
             ) FROM STDIN WITH (FORMAT csv, NULL '')
             """,
             out,
