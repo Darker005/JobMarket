@@ -14,22 +14,38 @@ SELECT DISTINCT
 FROM stg_jobs_clean
 ON CONFLICT (full_date) DO NOTHING;
 
-INSERT INTO dim_location (city, country, latitude, longitude)
-SELECT DISTINCT city, country, latitude, longitude
+INSERT INTO dim_location (country, city, latitude, longitude)
+SELECT DISTINCT ON (country, city)
+    country, city, latitude, longitude
 FROM stg_jobs_clean
-ON CONFLICT (city, country, latitude, longitude) DO NOTHING;
+ORDER BY country, city, latitude NULLS LAST
+ON CONFLICT (country, city) DO NOTHING;
 
-INSERT INTO dim_company (company_name, company_size, sector, industry, city, state, zip, website, ticker, ceo)
+INSERT INTO dim_company (company_name, company_size, industry, sector, website, ticker)
 SELECT DISTINCT
-    company_name, company_size, sector, industry, company_city, company_state,
-    company_zip, company_website, company_ticker, company_ceo
+    company_name, company_size, industry, sector, company_website, company_ticker
 FROM stg_jobs_clean
 ON CONFLICT (company_name) DO NOTHING;
 
-INSERT INTO dim_job (job_title, role, work_type, qualification)
-SELECT DISTINCT job_title, role, work_type, qualification
+INSERT INTO dim_job (job_title, role)
+SELECT DISTINCT job_title, role
 FROM stg_jobs_clean
-ON CONFLICT (job_title, role, work_type, qualification) DO NOTHING;
+ON CONFLICT (job_title, role) DO NOTHING;
+
+INSERT INTO dim_experience (experience_text, min_years, max_years, experience_band)
+SELECT DISTINCT experience_text, min_experience_years, max_experience_years, NULL
+FROM stg_jobs_clean
+ON CONFLICT (experience_text) DO NOTHING;
+
+INSERT INTO dim_qualification (qualification_name)
+SELECT DISTINCT qualification
+FROM stg_jobs_clean
+ON CONFLICT (qualification_name) DO NOTHING;
+
+INSERT INTO dim_work_type (work_type_name)
+SELECT DISTINCT work_type
+FROM stg_jobs_clean
+ON CONFLICT (work_type_name) DO NOTHING;
 
 INSERT INTO dim_portal (portal_name)
 SELECT DISTINCT portal_name FROM stg_jobs_clean
@@ -39,45 +55,45 @@ INSERT INTO dim_preference (preference_name)
 SELECT DISTINCT preference_name FROM stg_jobs_clean
 ON CONFLICT (preference_name) DO NOTHING;
 
-INSERT INTO fact_job (
-    job_id, time_id, location_id, company_id, job_dim_id, portal_id, preference_id,
-    min_salary, max_salary, min_experience_years, max_experience_years
+INSERT INTO fact_job_posting (
+    source_job_id, time_id, location_id, company_id, job_id,
+    experience_id, qualification_id, work_type_id, preference_id, portal_id,
+    min_salary, max_salary, skill_count, benefit_count, job_count
 )
 SELECT
     s.job_id,
     t.time_id,
     l.location_id,
     c.company_id,
-    j.job_dim_id,
-    p.portal_id,
+    j.job_id,
+    e.experience_id,
+    q.qualification_id,
+    w.work_type_id,
     pr.preference_id,
+    p.portal_id,
     s.min_salary,
     s.max_salary,
-    s.min_experience_years,
-    s.max_experience_years
+    s.skill_count,
+    s.benefit_count,
+    1
 FROM stg_jobs_clean s
 JOIN dim_time t ON t.full_date = s.posting_date
-JOIN dim_location l
-  ON l.city = s.city
- AND l.country = s.country
- AND COALESCE(l.latitude, 0) = COALESCE(s.latitude, 0)
- AND COALESCE(l.longitude, 0) = COALESCE(s.longitude, 0)
+JOIN dim_location l ON l.country = s.country AND l.city = s.city
 JOIN dim_company c ON c.company_name = s.company_name
-JOIN dim_job j
-  ON j.job_title = s.job_title
- AND COALESCE(j.role, '') = COALESCE(s.role, '')
- AND COALESCE(j.work_type, '') = COALESCE(s.work_type, '')
- AND COALESCE(j.qualification, '') = COALESCE(s.qualification, '')
+JOIN dim_job j ON j.job_title = s.job_title AND COALESCE(j.role, '') = COALESCE(s.role, '')
+JOIN dim_experience e ON e.experience_text = s.experience_text
+JOIN dim_qualification q ON q.qualification_name = s.qualification
+JOIN dim_work_type w ON w.work_type_name = s.work_type
 JOIN dim_portal p ON p.portal_name = s.portal_name
 JOIN dim_preference pr ON pr.preference_name = s.preference_name
-ON CONFLICT (job_id) DO NOTHING;
+ON CONFLICT (source_job_id) DO NOTHING;
 
 WITH exploded AS (
   SELECT
     f.fact_job_id,
     TRIM(skill_token) AS skill_name
   FROM stg_jobs_clean s
-  JOIN fact_job f ON f.job_id = s.job_id
+  JOIN fact_job_posting f ON f.source_job_id = s.job_id
   CROSS JOIN LATERAL regexp_split_to_table(
     COALESCE(s.skills_raw, ''),
     '\\|'
@@ -94,7 +110,7 @@ WITH exploded AS (
     f.fact_job_id,
     TRIM(skill_token) AS skill_name
   FROM stg_jobs_clean s
-  JOIN fact_job f ON f.job_id = s.job_id
+  JOIN fact_job_posting f ON f.source_job_id = s.job_id
   CROSS JOIN LATERAL regexp_split_to_table(
     COALESCE(s.skills_raw, ''),
     '\\|'
@@ -112,7 +128,7 @@ WITH exploded AS (
     f.fact_job_id,
     TRIM(benefit_token) AS benefit_name
   FROM stg_jobs_clean s
-  JOIN fact_job f ON f.job_id = s.job_id
+  JOIN fact_job_posting f ON f.source_job_id = s.job_id
   CROSS JOIN LATERAL regexp_split_to_table(
     COALESCE(s.benefits_raw, ''),
     '\\|'
@@ -129,7 +145,7 @@ WITH exploded AS (
     f.fact_job_id,
     TRIM(benefit_token) AS benefit_name
   FROM stg_jobs_clean s
-  JOIN fact_job f ON f.job_id = s.job_id
+  JOIN fact_job_posting f ON f.source_job_id = s.job_id
   CROSS JOIN LATERAL regexp_split_to_table(
     COALESCE(s.benefits_raw, ''),
     '\\|'
@@ -171,6 +187,9 @@ EXPORT_COLUMNS = [
     "max_salary",
     "min_experience_years",
     "max_experience_years",
+    "experience_text",
+    "skill_count",
+    "benefit_count",
     "skills_raw",
     "benefits_raw",
 ]
@@ -218,6 +237,9 @@ def load_clean_staging(conn, df):
                 max_salary NUMERIC,
                 min_experience_years INT,
                 max_experience_years INT,
+                experience_text TEXT,
+                skill_count INT,
+                benefit_count INT,
                 skills_raw TEXT,
                 benefits_raw TEXT
             );
@@ -232,8 +254,8 @@ def load_clean_staging(conn, df):
                 job_id, posting_date, city, country, latitude, longitude, work_type, qualification,
                 preference_name, job_title, role, portal_name, company_name, company_size, sector,
                 industry, company_city, company_state, company_zip, company_website, company_ticker,
-                company_ceo, min_salary, max_salary, min_experience_years,
-                max_experience_years, skills_raw, benefits_raw
+                company_ceo, min_salary, max_salary, min_experience_years, max_experience_years,
+                experience_text, skill_count, benefit_count, skills_raw, benefits_raw
             ) FROM STDIN WITH (FORMAT csv, NULL '')
             """,
             out,
@@ -245,4 +267,3 @@ def upsert_dw(conn):
     with conn.cursor() as cur:
         cur.execute(UPSERT_SQL)
     conn.commit()
-

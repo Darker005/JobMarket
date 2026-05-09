@@ -4,31 +4,28 @@
 
 | Raw Column | Warehouse Target | Notes |
 |---|---|---|
-| Job Id | fact_job.job_id | Natural business key for dedup/upsert |
-| Experience | fact_job.min_experience_years, fact_job.max_experience_years | Parse from text range ("5 to 15 Years") |
-| Qualifications | dim_job.qualification | Normalized text |
-| Salary Range | derived only | Keep for reference, use Min/Max Salary as source of truth |
-| Min Salary | fact_job.min_salary | Numeric |
-| Max Salary | fact_job.max_salary | Numeric |
-| location | dim_location.city | City name |
-| Country | dim_location.country | Country name |
-| latitude | dim_location.latitude | Numeric float |
-| longitude | dim_location.longitude | Numeric float |
-| Work Type | dim_job.work_type | Full-Time/Part-Time/Contract/Intern/... |
-| Company Size | dim_company.company_size | Organization size bucket |
-| Job Posting Date | dim_time.full_date | Supports Excel serial and date-like strings |
-| Preference | dim_preference.preference_name | Candidate preference segment |
-| Contact Person | optional (not modeled) | Can be added later if contact analytics required |
-| Contact | optional (not modeled) | Can be added later if contact analytics required |
-| Job Title | dim_job.job_title | Job title |
-| Role | dim_job.role | Role family |
-| Job Portal | dim_portal.portal_name | Source channel |
-| Job Description | optional (not modeled) | Candidate for NLP phase |
-| Benefits | dim_benefit + bridge_job_benefit | Tokenized list |
-| skills | dim_skill + bridge_job_skill | Tokenized list |
-| Responsibilities | optional (not modeled) | Candidate for NLP phase |
-| Company | dim_company.company_name | Company name |
-| Company Profile | dim_company.sector/industry/city/state/zip/website/ticker/ceo | JSON payload |
+| Job Id | fact_job_posting.source_job_id | Khóa nghiệp vụ, UNIQUE |
+| Experience | dim_experience (+ min/max years parse) | Text gốc → experience_text; năm parse vào min_years/max_years |
+| Qualifications | dim_qualification.qualification_name | |
+| Salary Range | derived only | Chỉ min/max salary là nguồn số |
+| Min Salary | fact_job_posting.min_salary | NUMERIC(12,2) |
+| Max Salary | fact_job_posting.max_salary | NUMERIC(12,2) |
+| location | dim_location.city | UNIQUE cùng country |
+| Country | dim_location.country | |
+| latitude / longitude | dim_location | CHECK tọa độ; cùng (country,city) một dòng location |
+| Work Type | dim_work_type.work_type_name | |
+| Company Size | dim_company.company_size | |
+| Job Posting Date | dim_time.full_date | Excel serial / chuỗi ngày |
+| Preference | dim_preference.preference_name | |
+| Contact Person / Contact | *(chưa model)* | |
+| Job Title | dim_job.job_title | dim_job chỉ (title, role) |
+| Role | dim_job.role | |
+| Job Portal | dim_portal.portal_name | |
+| Job Description / Responsibilities | *(chưa model)* | |
+| Benefits | dim_benefit + bridge_job_benefit; fact_job_posting.benefit_count | |
+| skills | dim_skill + bridge_job_skill; fact_job_posting.skill_count | |
+| Company | dim_company.company_name | |
+| Company Profile | dim_company sector/industry/website/ticker | JSON parse; city/state/zip/ceo chỉ còn trên staging ETL nếu cần sau |
 
 ## 2) Delivery Scope by Phase
 
@@ -54,12 +51,10 @@
 
 ## 3) Modeling Decisions
 
-- Grain of fact: one job posting per `job_id`.
-- Salary metric for analytics:
-  - `avg_salary = (min_salary + max_salary) / 2`
-- Skill and benefit are many-to-many attributes:
-  - `bridge_job_skill`, `bridge_job_benefit`
-- Time dimension sourced from posting date.
+- Grain: một dòng `fact_job_posting` = một tin tuyển dụng theo `source_job_id`.
+- Salary metric: `avg_salary = (min_salary + max_salary) / 2` (không cột avg trên fact).
+- Skill / benefit: bridge + `skill_count` / `benefit_count` trên fact.
+- Experience / qualification / work type: dimension riêng (chuẩn hoá theo schema team).
 
 ## 4) Current Constraints
 

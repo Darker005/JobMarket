@@ -30,13 +30,16 @@ def salary_prediction(conn):
     SELECT
         (f.min_salary + f.max_salary) / 2.0 AS target_salary,
         COALESCE(j.role, 'Unknown') AS role,
-        COALESCE(j.work_type, 'Unknown') AS work_type,
-        COALESCE(j.qualification, 'Unknown') AS qualification,
+        COALESCE(wt.work_type_name, 'Unknown') AS work_type,
+        COALESCE(q.qualification_name, 'Unknown') AS qualification,
         COALESCE(l.country, 'Unknown') AS country,
-        COALESCE(f.min_experience_years, 0) AS min_exp,
-        COALESCE(f.max_experience_years, 0) AS max_exp
-    FROM fact_job f
-    JOIN dim_job j ON j.job_dim_id = f.job_dim_id
+        COALESCE(ex.min_years, 0) AS min_exp,
+        COALESCE(ex.max_years, 0) AS max_exp
+    FROM fact_job_posting f
+    JOIN dim_job j ON j.job_id = f.job_id
+    JOIN dim_work_type wt ON wt.work_type_id = f.work_type_id
+    JOIN dim_qualification q ON q.qualification_id = f.qualification_id
+    JOIN dim_experience ex ON ex.experience_id = f.experience_id
     JOIN dim_location l ON l.location_id = f.location_id
     WHERE f.min_salary IS NOT NULL AND f.max_salary IS NOT NULL;
     """
@@ -81,7 +84,7 @@ def hot_skills_forecast(conn):
         s.skill_name,
         COUNT(*) AS demand_count
     FROM bridge_job_skill b
-    JOIN fact_job f ON f.fact_job_id = b.fact_job_id
+    JOIN fact_job_posting f ON f.fact_job_id = b.fact_job_id
     JOIN dim_time t ON t.time_id = f.time_id
     JOIN dim_skill s ON s.skill_id = b.skill_id
     GROUP BY t.year, t.month, s.skill_name
@@ -121,7 +124,7 @@ def hiring_trend_forecast(conn):
         t.year,
         t.month,
         COUNT(*) AS job_count
-    FROM fact_job f
+    FROM fact_job_posting f
     JOIN dim_time t ON t.time_id = f.time_id
     GROUP BY t.year, t.month
     ORDER BY t.year, t.month;

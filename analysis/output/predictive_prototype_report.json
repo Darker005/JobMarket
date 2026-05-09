@@ -1,54 +1,54 @@
 {
   "bq60_salary_prediction": {
     "dataset_rows": 2296,
-    "mae_linear_regression": 7342.032705962141,
-    "mae_random_forest": 6601.945652173913
+    "mae_linear_regression": 7166.906165522624,
+    "mae_random_forest": 6632.913043478261
   },
   "bq61_hot_skills_forecast": {
     "top_skill_forecast": [
       {
         "skill_name": "Google Analytics",
-        "predicted_next_month_demand": 28.25
+        "predicted_next_month_demand": 31.13
       },
       {
         "skill_name": "Python",
-        "predicted_next_month_demand": 25.48
+        "predicted_next_month_demand": 28.24
       },
       {
         "skill_name": "Python)",
-        "predicted_next_month_demand": 25.299999999999997
-      },
-      {
-        "skill_name": "CSS",
-        "predicted_next_month_demand": 25.139999999999997
-      },
-      {
-        "skill_name": "AWS",
-        "predicted_next_month_demand": 24.71
-      },
-      {
-        "skill_name": "Interaction design principles User behavior and psychology Wireframing and prototyping tools Animation and micro-interaction design Collaborative design processes",
-        "predicted_next_month_demand": 23.319999999999997
+        "predicted_next_month_demand": 27.55
       },
       {
         "skill_name": "Sketch",
-        "predicted_next_month_demand": 23.14
+        "predicted_next_month_demand": 27.3
+      },
+      {
+        "skill_name": "CSS",
+        "predicted_next_month_demand": 26.86
       },
       {
         "skill_name": "Java",
-        "predicted_next_month_demand": 21.769999999999996
+        "predicted_next_month_demand": 25.83
+      },
+      {
+        "skill_name": "Interaction design principles User behavior and psychology Wireframing and prototyping tools Animation and micro-interaction design Collaborative design processes",
+        "predicted_next_month_demand": 25.11
+      },
+      {
+        "skill_name": "AWS",
+        "predicted_next_month_demand": 24.31
       },
       {
         "skill_name": "Tableau",
-        "predicted_next_month_demand": 21.419999999999998
+        "predicted_next_month_demand": 22.77
       },
       {
         "skill_name": "Power BI)",
-        "predicted_next_month_demand": 21.419999999999998
+        "predicted_next_month_demand": 22.77
       }
     ]
   },
   "bq62_hiring_trend_forecast": {
-    "predicted_next_month_job_count": 85.98
+    "predicted_next_month_job_count": 95.87
   }
 }

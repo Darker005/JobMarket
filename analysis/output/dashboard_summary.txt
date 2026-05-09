@@ -2,5 +2,5 @@ JobMarket DW Dashboard Summary
 ================================
 Total jobs: 2296
 Total companies: 818
-Total locations: 199
-Average mid salary: 82618.25
+Total locations: 215
+Average mid salary: 82347.34

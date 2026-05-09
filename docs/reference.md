@@ -14,6 +14,13 @@ pip install -r requirements.txt
 
 `run.cmd` trên Windows tự dùng `.venv\Scripts\python.exe` nếu thư mục tồn tại (không cần activate khi double-click `run.cmd`).
 
+## Schema (tóm tắt)
+
+- **Fact:** `fact_job_posting` — khóa nghiệp vụ `source_job_id`; measure lương + `skill_count` / `benefit_count` / `job_count`.
+- **Dimension tách:** `dim_experience`, `dim_qualification`, `dim_work_type`; `dim_job` chỉ `(job_title, role)`.
+- **Location:** `dim_location` với `UNIQUE (country, city)` (một cặp địa danh một dòng).
+- **Company:** `dim_company` — `company_name`, `company_size`, `industry`, `sector`, `website`, `ticker` (bản merge từ schema team).
+
 ## Entrypoint thống nhất
 
 Toàn bộ bước schema → ETL → DQ → OLAP → dashboard → predictive do **`run.py`** điều phối. **`run.sh`** (Unix) và **`run.cmd`** (Windows) chỉ gọi `run.py`.

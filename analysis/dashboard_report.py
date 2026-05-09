@@ -28,7 +28,7 @@ def chart_jobs_by_month(conn, output_dir: Path):
         conn,
         """
         SELECT t.year, t.month, COUNT(*) AS total_jobs
-        FROM fact_job f
+        FROM fact_job_posting f
         JOIN dim_time t ON t.time_id = f.time_id
         GROUP BY t.year, t.month
         ORDER BY t.year, t.month;
@@ -53,7 +53,7 @@ def chart_top_countries(conn, output_dir: Path):
         conn,
         """
         SELECT l.country, COUNT(*) AS total_jobs
-        FROM fact_job f
+        FROM fact_job_posting f
         JOIN dim_location l ON l.location_id = f.location_id
         GROUP BY l.country
         ORDER BY total_jobs DESC
@@ -103,11 +103,11 @@ def chart_salary_by_work_type(conn, output_dir: Path):
     rows = fetch_rows(
         conn,
         """
-        SELECT COALESCE(j.work_type, 'Unknown') AS work_type,
+        SELECT COALESCE(wt.work_type_name, 'Unknown') AS work_type,
                AVG((f.min_salary + f.max_salary) / 2.0) AS avg_salary
-        FROM fact_job f
-        JOIN dim_job j ON j.job_dim_id = f.job_dim_id
-        GROUP BY COALESCE(j.work_type, 'Unknown')
+        FROM fact_job_posting f
+        JOIN dim_work_type wt ON wt.work_type_id = f.work_type_id
+        GROUP BY COALESCE(wt.work_type_name, 'Unknown')
         ORDER BY avg_salary DESC NULLS LAST;
         """,
     )
@@ -131,7 +131,7 @@ def chart_top_industries(conn, output_dir: Path):
         """
         SELECT COALESCE(c.industry, 'Unknown') AS industry,
                COUNT(*) AS total_jobs
-        FROM fact_job f
+        FROM fact_job_posting f
         JOIN dim_company c ON c.company_id = f.company_id
         GROUP BY COALESCE(c.industry, 'Unknown')
         ORDER BY total_jobs DESC
@@ -160,7 +160,7 @@ def write_summary_report(conn, output_dir: Path):
           COUNT(DISTINCT company_id) AS total_companies,
           COUNT(DISTINCT location_id) AS total_locations,
           AVG((min_salary + max_salary) / 2.0) AS avg_mid_salary
-        FROM fact_job;
+        FROM fact_job_posting;
         """,
     )
     total_jobs, total_companies, total_locations, avg_mid_salary = rows[0]

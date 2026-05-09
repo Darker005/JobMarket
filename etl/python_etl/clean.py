@@ -111,6 +111,22 @@ def normalize_token_list(value):
     return " | ".join(tokens) if tokens else None
 
 
+def count_pipe_delimited_items(value):
+    if pd.isna(value):
+        return 0
+    text = str(value).strip()
+    if not text:
+        return 0
+    return sum(1 for part in text.split("|") if part.strip())
+
+
+def experience_dimension_key(value):
+    if pd.isna(value):
+        return "Unknown"
+    text = str(value).strip()
+    return text if text else "Unknown"
+
+
 def parse_experience_range(value):
     if pd.isna(value):
         return (None, None)
@@ -144,6 +160,16 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     exp_ranges = df["experience_raw"].apply(parse_experience_range)
     df["min_experience_years"] = exp_ranges.apply(lambda x: x[0])
     df["max_experience_years"] = exp_ranges.apply(lambda x: x[1])
+    swap = (
+        df["min_experience_years"].notna()
+        & df["max_experience_years"].notna()
+        & (df["min_experience_years"] > df["max_experience_years"])
+    )
+    df.loc[swap, ["min_experience_years", "max_experience_years"]] = df.loc[
+        swap, ["max_experience_years", "min_experience_years"]
+    ].values
+
+    df["experience_text"] = df["experience_raw"].apply(experience_dimension_key)
 
     profiles = df["company_profile_raw"].apply(parse_company_profile)
     df["sector"] = profiles.apply(lambda x: x.get("Sector"))
@@ -158,6 +184,13 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["skills_raw"] = df["skills_raw"].apply(normalize_token_list)
     benefits_series = df["Benefits"] if "Benefits" in df.columns else pd.Series([None] * len(df), index=df.index)
     df["benefits_raw"] = benefits_series.apply(normalize_token_list)
+
+    df["skill_count"] = df["skills_raw"].apply(count_pipe_delimited_items)
+    df["benefit_count"] = df["benefits_raw"].apply(count_pipe_delimited_items)
+
+    df["role"] = df["role"].fillna("")
+    df["qualification"] = df["qualification"].fillna("Unknown")
+    df["work_type"] = df["work_type"].fillna("Unknown")
 
     df["portal_name"] = df["portal_name"].fillna("Unknown")
     df["preference_name"] = df["preference_name"].fillna("Unknown")
