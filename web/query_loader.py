@@ -14,9 +14,9 @@ _OLAP_LABELS: dict[str, tuple[str, str, str]] = {
         "So sánh mức lương giữa các quốc gia để xác định thị trường trả cao hoặc thấp hơn.",
     ),
     "=== Phase A / BQ2: City salary ranking ===": (
-        "Lương & phân khúc thị trường",
-        "Lương trung bình theo thành phố",
-        "Xem thành phố nào có mức lương trung bình cao (cần đủ số tin để ổn định — query có HAVING).",
+        "Địa lý & phân bổ địa điểm",
+        "BQ16 — Lương theo thành phố (city ranking)",
+        "Theo catalog: BQ16 location salary; echo cũ ghi BQ2 city — nội dung là xếp hạng lương theo city/country.",
     ),
     "=== Phase A / BQ3-BQ4: Industry/Sector salary ===": (
         "Lương & phân khúc thị trường",
@@ -115,9 +115,43 @@ def _ddl_label(sql: str) -> tuple[str, str, str]:
     )
 
 
+def _annotate_from_bq_echo(title: str) -> tuple[str, str, str] | None:
+    """Titles dạng '=== BQ4: ... ===' trong query_bq_gaps.sql."""
+    if not re.search(r"BQ\s*\d+", title, re.I):
+        return None
+    name = re.sub(r"^===\s*|\s*===\s*$", "", title.strip()).strip()
+    m = re.search(r"BQ\s*(\d+)", title, re.I)
+    n = int(m.group(1)) if m else 0
+    if 1 <= n <= 8:
+        g = "Lương & phân khúc thị trường"
+    elif 9 <= n <= 14:
+        g = "Kỹ năng"
+    elif 15 <= n <= 19:
+        g = "Địa lý & phân bổ địa điểm"
+    elif 20 <= n <= 25:
+        g = "Doanh nghiệp & nền tảng tuyển dụng"
+    elif 26 <= n <= 31:
+        g = "Xu hướng & thời điểm đăng tin"
+    elif 32 <= n <= 35:
+        g = "Phúc lợi"
+    elif 36 <= n <= 39:
+        g = "Kinh nghiệm & yêu cầu hồ sơ"
+    elif 40 <= n <= 41:
+        g = "Dự báo (Python)"
+    elif 42 <= n <= 43:
+        g = "Nâng cao (ngoài SQL)"
+    else:
+        g = "Khác"
+    return (g, name[:200], "Theo catalog BQ — xem docs/bq_coverage.md.")
+
+
 def _annotate(title: str, kind: str, sql: str) -> tuple[str, str, str]:
     if kind == "olap" and title in _OLAP_LABELS:
         return _OLAP_LABELS[title]
+    if kind == "olap":
+        cat = _annotate_from_bq_echo(title)
+        if cat:
+            return cat
     if kind == "ddl":
         return _ddl_label(sql)
     return (
@@ -197,14 +231,26 @@ def load_queries_from_olap_sql(sql_path: Path) -> list[dict]:
     return queries
 
 
+def load_merged_catalog(paths: list[Path]) -> list[dict]:
+    merged: list[dict] = []
+    for p in paths:
+        merged.extend(load_queries_from_olap_sql(p))
+    for i, q in enumerate(merged, start=1):
+        q["id"] = i
+    return merged
+
+
 GROUP_DISPLAY_ORDER: list[str] = [
     "Lương & phân khúc thị trường",
+    "Địa lý & phân bổ địa điểm",
     "Xu hướng & thời điểm đăng tin",
     "Doanh nghiệp & nền tảng tuyển dụng",
     "Kỹ năng",
     "Phúc lợi",
     "Kinh nghiệm & yêu cầu hồ sơ",
     "Hiệu quả chi phí & mật độ kỹ năng",
+    "Dự báo (Python)",
+    "Nâng cao (ngoài SQL)",
     "Bảo trì CSDL (tốc độ truy vấn)",
 ]
 

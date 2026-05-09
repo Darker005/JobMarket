@@ -101,8 +101,9 @@ def main():
     print("[3/6] Dang chay data quality checks...")
     run_command(psql_base + ["-f", str(base_dir / "analysis" / "data_quality_checks.sql")], env=env)
 
-    print("[4/6] Dang chay query OLAP...")
+    print("[4/6] Dang chay query OLAP + BQ catalog (gaps)...")
     run_command(psql_base + ["-f", str(base_dir / "analysis" / "query_olap.sql")], env=env)
+    run_command(psql_base + ["-f", str(base_dir / "analysis" / "query_bq_gaps.sql")], env=env)
 
     print("[5/6] Dang tao dashboard/report outputs...")
     dashboard_cmd = [

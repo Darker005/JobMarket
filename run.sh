@@ -47,11 +47,14 @@ psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
   -v ON_ERROR_STOP=1 \
   -f "$BASE_DIR/analysis/data_quality_checks.sql"
 
-# 4) Run OLAP queries
-echo "[4/6] Dang chay query OLAP..."
+# 4) Run OLAP queries + BQ catalog (gaps)
+echo "[4/6] Dang chay query OLAP + BQ catalog (gaps)..."
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
   -v ON_ERROR_STOP=1 \
   -f "$BASE_DIR/analysis/query_olap.sql"
+psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+  -v ON_ERROR_STOP=1 \
+  -f "$BASE_DIR/analysis/query_bq_gaps.sql"
 
 # 5) Generate dashboard/report outputs
 echo "[5/6] Dang tao dashboard/report outputs..."

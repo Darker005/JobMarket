@@ -8,7 +8,7 @@
     "top_skill_forecast": [
       {
         "skill_name": "Google Analytics",
-        "predicted_next_month_demand": 31.13
+        "predicted_next_month_demand": 31.130000000000003
       },
       {
         "skill_name": "Python",
@@ -24,7 +24,7 @@
       },
       {
         "skill_name": "CSS",
-        "predicted_next_month_demand": 26.86
+        "predicted_next_month_demand": 26.859999999999996
       },
       {
         "skill_name": "Java",
@@ -36,7 +36,7 @@
       },
       {
         "skill_name": "AWS",
-        "predicted_next_month_demand": 24.31
+        "predicted_next_month_demand": 24.310000000000002
       },
       {
         "skill_name": "Tableau",

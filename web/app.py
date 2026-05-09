@@ -12,10 +12,11 @@ import pandas as pd
 import psycopg2
 import streamlit as st
 
-from query_loader import load_queries_from_olap_sql, ordered_groups, repo_root
+from query_loader import load_merged_catalog, ordered_groups, repo_root
 
 ROOT = repo_root()
 OLAP_SQL = ROOT / "analysis" / "query_olap.sql"
+BQ_GAPS_SQL = ROOT / "analysis" / "query_bq_gaps.sql"
 OUTPUT_DIR = ROOT / "analysis" / "output"
 DEFAULT_INPUT = ROOT / "jobs_analysis.xlsx"
 
@@ -138,7 +139,10 @@ def page_queries(host: str, port: str, db: str, user: str, password: str):
         st.error(f"Không tìm thấy {OLAP_SQL}")
         return
 
-    queries = load_queries_from_olap_sql(OLAP_SQL)
+    sql_paths = [OLAP_SQL]
+    if BQ_GAPS_SQL.is_file():
+        sql_paths.append(BQ_GAPS_SQL)
+    queries = load_merged_catalog(sql_paths)
     olap_only = [q for q in queries if q["kind"] == "olap"]
     ddl_only = [q for q in queries if q["kind"] == "ddl"]
 
