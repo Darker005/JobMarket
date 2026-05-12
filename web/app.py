@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +46,144 @@ def get_conn(host: str, port: str, db: str, user: str, password: str | None):
 
 def run_sql(conn, sql: str) -> pd.DataFrame:
     return pd.read_sql_query(sql, conn)
+
+
+def _display_width_kw() -> dict[str, Any]:
+    """Streamlit ≥1.33 dùng width='stretch' thay cho use_container_width (tránh cảnh báo)."""
+    try:
+        ver = getattr(st, "__version__", "0")
+        m = re.match(r"^(\d+)\.(\d+)", ver.strip())
+        if m:
+            major, minor = int(m.group(1)), int(m.group(2))
+            if major >= 2 or (major == 1 and minor >= 33):
+                return {"width": "stretch"}
+    except Exception:
+        pass
+    return {"use_container_width": True}
+
+
+def _numeric_columns(df: pd.DataFrame) -> list[str]:
+    return [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+
+
+def _label_columns(df: pd.DataFrame, numeric: list[str]) -> list[str]:
+    labels = [c for c in df.columns if c not in numeric]
+    return labels if labels else list(df.columns)
+
+
+def _prepare_chart_frame(
+    df: pd.DataFrame,
+    label_col: str,
+    value_cols: list[str],
+    agg: str,
+) -> pd.DataFrame | None:
+    """Chuẩn bị DataFrame: index = nhãn, cột = giá trị số (gộp trùng nhãn nếu cần)."""
+    value_cols = [c for c in value_cols if c != label_col]
+    if not value_cols:
+        return None
+    use = df[[label_col] + value_cols].copy()
+    use = use.dropna(subset=[label_col])
+    for vc in value_cols:
+        use[vc] = pd.to_numeric(use[vc], errors="coerce")
+    use = use.dropna(subset=value_cols, how="all")
+    if use.empty:
+        return None
+    if use[label_col].duplicated().any():
+        if agg == "sum":
+            use = use.groupby(label_col, as_index=True)[value_cols].sum()
+        elif agg == "mean":
+            use = use.groupby(label_col, as_index=True)[value_cols].mean()
+        else:
+            use = use.groupby(label_col, as_index=True)[value_cols].max()
+    else:
+        use = use.set_index(label_col)
+    return use
+
+
+def _chart_key_suffix(query_id: int, df: pd.DataFrame) -> str:
+    """Key riêng theo truy vận + tập cột để multiselect không giữ cột cũ gây lỗi."""
+    h = abs(hash(tuple(df.columns.astype(str).tolist())))
+    return f"{query_id}_{h % 1_000_000_000}"
+
+
+def _render_query_charts(df: pd.DataFrame, key_suffix: str) -> None:
+    """Biểu đồ động từ DataFrame kết quả SQL (Streamlit built-in)."""
+    numeric = _numeric_columns(df)
+    if not numeric:
+        st.info("Kết quả không có cột kiểu số — không thể vẽ biểu đồ trục giá trị.")
+        return
+
+    labels = _label_columns(df, numeric)
+    with st.expander("Biểu đồ từ kết quả truy vấn", expanded=False):
+        st.caption(
+            "Chọn cột **nhãn** (trục ngang) và một hoặc nhiều cột **số**. "
+            "Nếu nhiều dòng trùng nhãn, dữ liệu sẽ được gộp theo lựa chọn bên dưới."
+        )
+        try:
+            chart_kind = st.selectbox(
+                "Loại biểu đồ",
+                ["Không hiển thị", "Cột", "Đường", "Vùng"],
+                key=f"q_chart_kind_{key_suffix}",
+            )
+            if chart_kind == "Không hiển thị":
+                return
+
+            default_label = labels[0] if labels else df.columns[0]
+            idx = labels.index(default_label) if default_label in labels else 0
+            label_col = st.selectbox(
+                "Cột nhãn (trục X / danh mục)",
+                labels,
+                index=idx,
+                key=f"q_chart_label_{key_suffix}",
+            )
+
+            numeric_y = [c for c in numeric if c != label_col]
+            if not numeric_y:
+                st.warning("Không còn cột số nào làm trục Y sau khi loại cột nhãn — chọn cột nhãn khác.")
+                return
+
+            default_y = numeric_y[: min(4, len(numeric_y))]
+            value_cols = st.multiselect(
+                "Cột giá trị (trục Y)",
+                numeric_y,
+                default=default_y,
+                key=f"q_chart_values_{key_suffix}",
+            )
+            if not value_cols:
+                st.warning("Chọn ít nhất một cột giá trị.")
+                return
+
+            agg_choice = st.selectbox(
+                "Gộp khi trùng nhãn",
+                [("sum", "Tổng"), ("mean", "Trung bình"), ("max", "Giá trị lớn nhất")],
+                format_func=lambda x: x[1],
+                key=f"q_chart_agg_{key_suffix}",
+            )
+            agg = agg_choice[0]
+
+            prep = _prepare_chart_frame(df, label_col, value_cols, agg)
+            if prep is None or prep.empty:
+                st.warning("Không đủ dữ liệu sau khi lọc / gộp.")
+                return
+
+            max_rows = 80
+            if len(prep) > max_rows:
+                st.warning(f"Chỉ hiển thị {max_rows} nhãn đầu (tránh biểu đồ quá chật).")
+                prep = prep.head(max_rows)
+
+            st.caption(f"**{len(prep)}** nhãn · **{len(value_cols)}** chuỗi số · gộp: **{agg}**")
+
+            _chart_kw = _display_width_kw()
+
+            if chart_kind == "Cột":
+                st.bar_chart(prep, **_chart_kw)
+            elif chart_kind == "Đường":
+                st.line_chart(prep, **_chart_kw)
+            else:
+                st.area_chart(prep, **_chart_kw)
+        except Exception as e:
+            st.error("Không vẽ được biểu đồ với lựa chọn hiện tại.")
+            st.caption(str(e))
 
 
 def sidebar_db():
@@ -205,17 +344,29 @@ def page_queries(host: str, port: str, db: str, user: str, password: str):
                         cur.execute(q["sql"])
                     conn.commit()
                     st.success("Đã thực thi lệnh DDL.")
+                    st.session_state.pop("olap_last_result", None)
                 else:
                     df = run_sql(conn, q["sql"])
                     if limit_rows and len(df) > limit_rows:
                         st.warning(f"Chỉ hiển thị {limit_rows}/{len(df)} dòng.")
                         df = df.head(limit_rows)
-                    st.dataframe(df, use_container_width=True)
-                    st.caption(f"{len(df)} dòng (sau giới hạn hiển thị nếu có).")
+                    st.session_state["olap_last_result"] = {"query_id": q["id"], "df": df}
+                    st.session_state["query_last_df"] = df
+                    st.session_state["query_last_name"] = q.get("name", "")
+                    st.success("Đã tải kết quả.")
             finally:
                 conn.close()
         except Exception as e:
             st.error(str(e))
+
+    res = st.session_state.get("olap_last_result")
+    if res and res.get("query_id") == q["id"] and "df" in res:
+        df_show = res["df"]
+        st.dataframe(df_show, **_display_width_kw())
+        st.caption(f"{len(df_show)} dòng (sau giới hạn hiển thị nếu có).")
+        _render_query_charts(df_show, _chart_key_suffix(q["id"], df_show))
+    elif res and res.get("query_id") != q["id"]:
+        st.caption("Đang chọn truy vấn khác — bấm **Chạy truy vấn này** để cập nhật bảng và biểu đồ.")
 
 
 def _df_from_list(rows: list[dict[str, Any]] | None) -> pd.DataFrame | None:
